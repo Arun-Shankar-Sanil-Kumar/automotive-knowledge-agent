@@ -250,118 +250,96 @@ The exact tool name and argument schema will be determined from the server's `to
 
 ## 5B. Development Tracking & Commit Workflow
 
-Every Phase 1 development task should follow a complete implementation lifecycle.
+Phase 1 uses two complementary development-management MCP servers: a local Git MCP server that provides programmatic access to the *local* repository, and a GitHub MCP server that provides programmatic access to the remote GitHub development services. These two MCPs are strictly part of the development tracking workflow and are not part of the product/runtime Fetch MCP capability.
 
-The coding assistant is responsible for completing the implementation, testing the task, committing the completed work, pushing the commit to the remote GitHub repository, and updating the corresponding GitHub Issue before proceeding to the next task.
+The responsibilities are split as follows:
 
-### Task Lifecycle
+- Git MCP (local Git operations):
+  - Inspect local repository status and uncommitted changes.
+  - Show local diffs and file-level changes.
+  - Stage/unstage files and create local commits.
+  - Push and pull changes to/from remotes.
+  - Branch operations (create, checkout, rename, delete, list).
+  - Other local Git operations supported by the installed Git MCP server (reflog, stash, reset, etc.).
+
+- GitHub MCP (remote GitHub operations):
+  - Create, read and update Issues.
+  - Project / task tracking and issue fields.
+  - Read remote repository metadata and the remote commit history.
+  - Create and manage Pull Requests.
+  - Other GitHub development-management operations exposed by the installed GitHub MCP server (labels, releases, comments, reviews).
+
+These MCPs complement each other: the Git MCP enables the assistant to perform precise, semantics-aware local repository operations, while GitHub MCP enables the assistant to manage the team-facing workflow on GitHub. Neither replaces the other.
+
+### Revised Task Lifecycle
+
+The development flow for a Phase 1 task is:
 
 ```text
-GitHub Issue / Task
-        │
-        ▼
+GitHub MCP
+    ↓
+Read / manage development task
+    ↓
+AI Development Assistant
+    ↓
 Implement
-        │
-        ▼
+    ↓
 Test
-        │
-        ▼
-Verify Acceptance Criteria
-        │
-        ▼
-Create Meaningful Commit
-        │
-        ▼
-Push to GitHub
-        │
-        ▼
-Update / Close Issue
-        │
-        ▼
-Next Task
-```
-
-### Commit Rule
-
-By default, each completed Phase 1 task should result in **one coherent commit**.
-
-This does not mean every individual code change requires a commit. Multiple small changes can be part of the same task and commit.
-
-Example:
-
-```text
-TASK-02 — Connect Fetch MCP
-
-Implementation
-      ↓
-Testing
-      ↓
-Commit:
-feat: connect fetch MCP server
-      ↓
+    ↓
+Update DEVELOPMENT_LOG.md
+    ↓
+Git MCP
+    ↓
+Commit
+    ↓
 Push
-      ↓
-Update TASK-02
+    ↓
+GitHub MCP
+    ↓
+Update / close GitHub Issue
+    ↓
+Next task
 ```
 
-### Commit Message Convention
+Key rules:
 
-Use clear conventional-style commit prefixes:
+- Do not claim that Git MCP replaces GitHub MCP, and do not claim that GitHub MCP replaces local Git.
+- Keep the Fetch MCP as the only MCP server used by the Phase 1 product/runtime.
+- Use Git MCP only for local repository operations and GitHub MCP for remote, GitHub-facing operations.
+- Update `DEVELOPMENT_LOG.md` before committing so the local commit and remote issue reflect the recorded work.
 
-```text
-feat:     new functionality
-fix:      bug fix
-docs:     documentation
-test:     tests
-refactor: code restructuring
-chore:    configuration/tooling
-```
+### Commit Rule & Message Convention
 
-Examples:
-
-```text
-feat: integrate fetch MCP client
-feat: implement URL ingestion
-feat: add ingestion frontend
-fix: handle fetch errors
-test: add URL ingestion tests
-docs: update phase 1 plan
-```
+By default each completed Phase 1 task should result in one coherent commit. Use conventional commit prefixes for clarity (example: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`).
 
 ### Push Requirement
 
-After the task passes its acceptance criteria:
+After acceptance criteria are satisfied and the `DEVELOPMENT_LOG.md` update is recorded locally:
 
-1. Stage the relevant changes.
-2. Create the meaningful commit.
-3. Push the commit to the remote GitHub repository.
-4. Update or close the corresponding GitHub Issue.
-5. Only then proceed to the next Phase 1 task.
+1. Use Git MCP to stage the relevant files and create a local commit.
+2. Use Git MCP to push the commit to the configured remote.
+3. Use GitHub MCP to update or close the corresponding GitHub Issue.
 
 ### Safety Rule
 
-The coding assistant must **not blindly commit and push untested work**.
-
-Before committing:
-
-- The implementation must run.
-- Relevant tests must pass.
-- The task's acceptance criteria must be satisfied.
-- No unrelated changes should be included in the task commit.
-
-If a task cannot be completed or tested successfully, the assistant should **not mark the task as complete or push a misleading completion commit**.
-
+Do not commit or push untested or incomplete work. Validate locally (run the runner or tests) before creating a commit. If validation cannot be completed, do not mark the task as done nor push changes.
 ---
 
 ## 5A. GitHub MCP — Development Tracking
 
-GitHub MCP will be used as a **development-management capability**, not as part of the automotive content ingestion workflow.
+GitHub MCP will be used as the team-facing development-management capability. It complements the Git MCP local operations by providing remote, GitHub-hosted services that support issue tracking, pull requests, and repository metadata.
 
 ### Purpose
 
-Use GitHub MCP to help track and manage the development of the project through the repository, issues, project tracking, commits, and pull requests.
+Use GitHub MCP to:
 
-### Phase 1 Development Workflow
+- Create, read, update, and close Issues.
+- Manage project/task fields and workflows on GitHub.
+- Read remote repository metadata and the remote commit history.
+- Create and manage Pull Requests and reviews.
+- Manage labels, releases, comments, and other GitHub-hosted development-management features.
+
+### Phase 1 Development Workflow (remote-facing)
 
 ```text
 Developer
@@ -406,46 +384,27 @@ Implementation
  ↓
 Testing
  ↓
-Commit
+Commit (via Git MCP)
  ↓
-Push
+Push (via Git MCP)
  ↓
-Issue update / closure
+Issue update / closure (via GitHub MCP)
 ```
-
-The task is considered complete only after the implementation has been tested and the corresponding changes have been committed and pushed.
 
 ### Example Developer Interactions
 
 The development assistant should eventually be able to handle requests such as:
 
-> "What are the remaining Phase 1 tasks?"
-
-> "Create an issue for adding Browser MCP fallback."
-
-> "Mark the Fetch MCP integration task as complete."
-
-> "What changed in the latest implementation?"
-
-> "Show me the open issues related to the frontend."
-
-> "Summarize the latest pull request."
-
-The exact GitHub MCP tools used will be determined from the installed server's actual `tools/list` response.
+- "What are the remaining Phase 1 tasks?" — (GitHub MCP: list/read issues)
+- "Create an issue for adding Browser MCP fallback." — (GitHub MCP: create issue)
+- "Mark the Fetch MCP integration task as complete." — (Git MCP: local commit/push + GitHub MCP: update/close issue)
+- "What changed in the latest implementation?" — (Git MCP: show local diff / GitHub MCP: show recent commits)
+- "Show me the open issues related to the frontend." — (GitHub MCP: search issues)
+- "Summarize the latest pull request." — (GitHub MCP: read PR and comments)
 
 ### Important Boundary
 
-GitHub MCP is used to **manage the development of the system**.
-
-It does not perform web scraping:
-
-```text
-Fetch MCP  → Web ingestion
-
-GitHub MCP → Development tracking
-```
-
-This separation should remain clear in the architecture.
+GitHub MCP is strictly for remote development-management. It does not replace local Git workflows provided by Git MCP, nor does Git MCP replace the need for GitHub MCP. The Fetch MCP remains the only MCP used by the Phase 1 product/runtime.
 
 ---
 ```text
@@ -467,7 +426,7 @@ For every completed task, add a dated entry containing:
 - Work performed
 - Files created or modified
 - Tests/checks performed
-- Commit hash
+- Commit message
 - GitHub Issue status
 
 ### Example
@@ -741,11 +700,12 @@ and:
 
 > **MCP can also expose development capabilities that an AI assistant can use to work with the project's software-development workflow.**
 
-This gives Phase 1 two distinct MCP demonstrations:
+This gives Phase 1 three distinct MCP demonstrations:
 
 ```text
 Fetch MCP  → Product/runtime capability
-GitHub MCP → Development capability
+Git MCP    → Local source-control capability
+GitHub MCP → Remote development-management capability
 ```
 
 Instead of:
@@ -792,9 +752,11 @@ Development workflow:
 ```text
 Developer
  ↓
-GitHub MCP
+AI Development Assistant
  ↓
-Issues / Repository / Commits / Pull Requests
+Git MCP (local commits, branches, staging)
+ ↓
+GitHub MCP (issues, PRs, remote repository)
 ```
 
 ### Phase 2
