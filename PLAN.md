@@ -146,8 +146,7 @@ automotive-knowledge-agent/
 │   └── app.py
 │
 ├── mcp/
-│   ├── fetch_client.py
-│   └── github_client.py
+│   └── fetch_client.py
 │
 ├── .env
 ├── .gitignore
