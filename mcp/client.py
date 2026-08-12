@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from typing import Optional
+import requests
 
 
 class MCPClient:
@@ -27,7 +28,19 @@ class MCPClient:
         Not implemented in TASK-01; this is a placeholder to be implemented
         in the next task that actually integrates with a Fetch MCP server.
         """
-        raise NotImplementedError("MCP server connection not implemented yet")
+        if not self.endpoint:
+            raise ValueError("MCP server endpoint is not configured. Set MCP_SERVER_ENDPOINT")
+
+        try:
+            resp = requests.get(self.endpoint, timeout=5)
+            resp.raise_for_status()
+            self.connected = True
+            # Store a lightweight server response for diagnostics; do not assume JSON
+            self.server_info = resp.text
+            return None
+        except requests.RequestException as exc:
+            self.connected = False
+            raise ConnectionError(f"Failed to connect to MCP server at {self.endpoint}: {exc}") from exc
 
     def list_tools(self) -> list:
         """Discover available tools exposed by the MCP server.

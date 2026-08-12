@@ -40,3 +40,26 @@ MCP client foundation initialized (no network calls were made).
 
 **GitHub Issue:**
 - Issue #1 — "Setup Python MCP client" — closed after commit and validation.
+
+### TASK-02 — Connect Fetch MCP
+
+**Status:** In Progress
+
+**Work Performed:**
+- Implemented a basic MCP connection method on `mcp/client.py` that attempts an HTTP GET to the configured `MCP_SERVER_ENDPOINT` and records connection state.
+- Updated the runtime runner `backend/app.py` to attempt a connection at startup and report success/failure.
+- Added `requests` to `requirements.txt` for HTTP connectivity.
+
+**Files changed (working tree):**
+- `mcp/client.py`
+- `backend/app.py`
+- `requirements.txt`
+
+**Validation / Checks Performed:**
+- Local static inspection of changes. Runtime checks will be performed after configuring `MCP_SERVER_ENDPOINT` in the environment and invoking `python -m backend.app`.
+
+**Planned commit message:**
+- `feat: connect fetch MCP`
+
+**GitHub Issue:**
+- Issue #2 — Open (will be updated after successful commit & push)

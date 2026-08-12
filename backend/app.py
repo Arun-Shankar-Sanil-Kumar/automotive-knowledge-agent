@@ -14,7 +14,11 @@ def main() -> None:
     print("Initializing Phase 1 application...")
     client = MCPClient()
     print(f"Configured MCP endpoint: {client.endpoint!r}")
-    print("MCP client foundation initialized (no network calls were made).")
+    try:
+        client.connect()
+        print("Connected to MCP server successfully.")
+    except Exception as exc:
+        print(f"MCP connection failed: {exc}")
 
 
 if __name__ == "__main__":
