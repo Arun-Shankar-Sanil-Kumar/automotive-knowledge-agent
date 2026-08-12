@@ -448,6 +448,61 @@ GitHub MCP → Development tracking
 This separation should remain clear in the architecture.
 
 ---
+```text
+## 5C. Development Log
+
+The project must maintain a `DEVELOPMENT_LOG.md` file that records the
+actual development work completed during Phase 1.
+
+The coding assistant must update this file whenever a Phase 1 task is
+successfully completed.
+
+### Development Log Requirements
+
+For every completed task, add a dated entry containing:
+
+- Date
+- GitHub Issue / Task number
+- Task title
+- Work performed
+- Files created or modified
+- Tests/checks performed
+- Commit hash
+- GitHub Issue status
+
+### Example
+
+```text
+# Development Log
+
+## 2026-08-12
+
+### TASK-01 — Setup Python MCP Client
+
+**Status:** Completed
+
+**Work Performed:**
+- Created Python project structure.
+- Added MCP client dependencies.
+- Created MCP client foundation.
+- Added environment configuration.
+
+**Files Changed:**
+- `requirements.txt`
+- `mcp/fetch_client.py`
+- `.env.example`
+
+**Validation:**
+- Python environment verified.
+- MCP client initialization tested successfully.
+
+**Commit:**
+`abc1234` — `feat: setup Python MCP client`
+
+**GitHub Issue:**
+#1 — Closed
+```
+---
 
 ## 6. User Workflow
 
