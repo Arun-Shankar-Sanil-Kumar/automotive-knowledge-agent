@@ -136,7 +136,7 @@ Phase 1 will contain both a **product runtime track** and a **development tracki
 
 ```text
 automotive-knowledge-agent/
-│
+│── DEVELOPMENT_LOG.md
 ├── frontend/
 │   ├── index.html
 │   ├── style.css
