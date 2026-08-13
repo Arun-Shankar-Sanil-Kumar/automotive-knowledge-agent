@@ -97,7 +97,6 @@ MCP client foundation initialized (no network calls were made).
 
 **GitHub Issue:**
 - Issue #2 — Open (will be updated after successful commit & push)
-<<<<<<< HEAD
 
 ### TASK-03 — Discover Fetch tools
 
@@ -143,5 +142,3 @@ MCP client foundation initialized (no network calls were made).
 
 **GitHub Issue:**
 - Issue #3 — "Discover Fetch tools" — was closed prematurely; it will be reopened and closed again after the TASK-03 commit is pushed.
-=======
->>>>>>> 4f5a563 (feat: connect fetch MCP)
