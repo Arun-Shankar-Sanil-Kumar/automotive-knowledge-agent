@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from mcp import MCPClient
+import json
 
 
 def main() -> None:
@@ -19,6 +20,15 @@ def main() -> None:
         print("Connected to MCP server successfully.")
     except Exception as exc:
         print(f"MCP connection failed: {exc}")
+        return
+
+    # Discover available tools and display them for Phase 1 verification
+    try:
+        tools = client.list_tools()
+        print("Discovered tools:")
+        print(json.dumps(tools, indent=2))
+    except Exception as exc:
+        print(f"Tool discovery failed: {exc}")
 
 
 if __name__ == "__main__":

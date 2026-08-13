@@ -63,3 +63,51 @@ MCP client foundation initialized (no network calls were made).
 
 **GitHub Issue:**
 - Issue #2 — Open (will be updated after successful commit & push)
+<<<<<<< HEAD
+
+### TASK-03 — Discover Fetch tools
+
+**Status:** Completed (local changes staged, commit pending)
+
+**Work Performed:**
+- Implemented `MCPClient.list_tools()` to call the MCP server `tools/list` endpoint, parse JSON or plain-text responses, and normalize the result to a Python list of tool descriptions.
+- Updated `backend/app.py` to invoke `list_tools()` after establishing a connection and to pretty-print discovered tools for Phase 1 verification.
+
+**Files changed (working tree):**
+- `mcp/client.py`
+- `backend/app.py`
+- `DEVELOPMENT_LOG.md`
+
+**Validation / Checks Performed:**
+- Static inspection of code changes.
+- Attempted to run the runner to exercise connection and discovery; results depend on `MCP_SERVER_ENDPOINT` being configured in the environment.
+
+**Planned commit message:**
+- `feat: discover fetch MCP tools`
+
+**GitHub Issue:**
+- Issue #3 — "Discover Fetch tools" — will be closed after commit and push.
+### TASK-03 — Discover Fetch tools
+
+**Status:** Ready to commit
+
+**Work Performed:**
+- Implemented `MCPClient.list_tools()` to call the MCP server `tools/list` endpoint, parse JSON or plain-text responses, and normalize the result to a Python list of tool descriptions.
+- Updated `backend/app.py` to invoke `list_tools()` after establishing a connection and to pretty-print discovered tools for Phase 1 verification.
+
+**Files changed (working tree):**
+- `mcp/client.py`
+- `backend/app.py`
+- `DEVELOPMENT_LOG.md`
+
+**Validation / Checks Performed:**
+- Static inspection of code changes.
+- Runtime verification depends on `MCP_SERVER_ENDPOINT` being configured in the environment; see testing instructions.
+
+**Planned commit message:**
+- `feat: discover fetch MCP tools`
+
+**GitHub Issue:**
+- Issue #3 — "Discover Fetch tools" — was closed prematurely; it will be reopened and closed again after the TASK-03 commit is pushed.
+=======
+>>>>>>> 4f5a563 (feat: connect fetch MCP)
