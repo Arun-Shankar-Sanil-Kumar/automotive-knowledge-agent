@@ -1,34 +1,100 @@
-"""Small runner to initialize the Phase 1 application and MCP client.
+"""Phase 1 URL ingestion runner.
 
-This script verifies that the MCP client foundation can be imported
-and initialized from environment configuration without performing
-any network calls.
+Accepts a URL from the user and retrieves the webpage content through the
+Fetch MCP server using the existing MCP client. The application does not
+perform any direct HTTP scraping; the Fetch MCP server performs the web
+retrieval.
 """
 from __future__ import annotations
 
-import os
 from mcp import MCPClient
-import json
+from mcp.client import extract_content
+
+MAX_URL_LENGTH = 2048
+
+
+def validate_url(value: str) -> bool:
+    """Validate that the input looks like a reasonable HTTP/HTTPS URL."""
+    if not isinstance(value, str):
+        return False
+    value = value.strip()
+    if not value:
+        return False
+    if len(value) > MAX_URL_LENGTH:
+        return False
+    if " " in value or "\t" in value or "\n" in value:
+        return False
+    lower = value.lower()
+    if not (lower.startswith("http://") or lower.startswith("https://")):
+        return False
+    return bool(value.split("://", 1)[1])
+
+
+def ingest_url(url: str) -> dict:
+    """Retrieve a webpage through the Fetch MCP server.
+
+    Connects to the MCP server, discovers its tools, identifies the Fetch
+    tool from the discovered tool information, invokes it with the supplied
+    URL, and extracts the returned content. Preserves the source URL.
+    """
+    client = MCPClient()
+    client.connect()
+    tools = client.list_tools()
+    fetch_tool = client.find_fetch_tool(tools)
+    arguments = client.get_tool_arguments(fetch_tool, url)
+    result = client.call_tool(fetch_tool["name"], arguments)
+    content = extract_content(result)
+
+    return {
+        "source": url,
+        "tool": fetch_tool["name"],
+        "status": "SUCCESS",
+        "content": content,
+    }
 
 
 def main() -> None:
-    print("Initializing Phase 1 application...")
-    client = MCPClient()
-    print(f"Configured MCP endpoint: {client.endpoint!r}")
+    print("========================================")
+    print("Automotive Knowledge Ingestion")
+    print("========================================")
+    print()
     try:
-        client.connect()
-        print("Connected to MCP server successfully.")
-    except Exception as exc:
-        print(f"MCP connection failed: {exc}")
+        raw = input("Enter URL: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        print("No URL entered. Exiting.")
         return
 
-    # Discover available tools and display them for Phase 1 verification
+    if not validate_url(raw):
+        print("Invalid URL.")
+        return
+
+    print()
+    print("Fetching URL through Fetch MCP...")
     try:
-        tools = client.list_tools()
-        print("Discovered tools:")
-        print(json.dumps(tools, indent=2))
-    except Exception as exc:
-        print(f"Tool discovery failed: {exc}")
+        outcome = ingest_url(raw)
+    except ValueError as exc:
+        print("MCP configuration error:", exc)
+        return
+    except ConnectionError as exc:
+        print("Unable to connect to Fetch MCP Server:", exc)
+        return
+    except RuntimeError as exc:
+        print("Unable to retrieve webpage:", exc)
+        return
+
+    print()
+    print("Source:")
+    print(outcome["source"])
+    print()
+    print("Status:")
+    print(outcome["status"])
+    print()
+    print("Content:")
+    print("----------------------------------------")
+    content = outcome["content"].strip()
+    print(content if content else "Webpage retrieved, but no usable content was returned.")
+    print("----------------------------------------")
 
 
 if __name__ == "__main__":

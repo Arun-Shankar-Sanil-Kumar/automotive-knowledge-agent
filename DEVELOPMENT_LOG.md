@@ -1,5 +1,39 @@
 # Development Log
 
+## 2026-08-13
+
+### TASK-04 — Implement URL ingestion
+
+**Status:** Completed
+
+**Work Performed:**
+- Added `MCPClient.find_fetch_tool()` to dynamically identify the Fetch tool from the actual `tools/list` discovery response (prefers an exact `fetch` match, then any tool whose name contains `fetch`). No tool name is hardcoded.
+- Added `MCPClient.get_tool_arguments()` to build the invocation arguments from the discovered tool's `inputSchema` (prefers a `url` property; otherwise uses the first required property or first declared property).
+- Added `MCPClient.call_tool()` to invoke a discovered tool against the MCP server's `tools/call` endpoint. The user-supplied URL is sent only as JSON tool arguments; the MCP server performs the web retrieval.
+- Added `extract_content()` helper to normalize MCP-style call results (plain text, JSON, `{"content": [...]}`, `{"result": ...}`, text content items) into readable content.
+- Updated `backend/app.py` to provide a CLI URL ingestion flow: prompt for URL, validate it is a reasonable HTTP/HTTPS URL, connect through the MCP client, discover tools, select the Fetch tool dynamically, invoke it with the URL, and display Source / Status / Content while preserving the source URL.
+- The webpage retrieval is performed exclusively through the Fetch MCP server. No direct HTTP scraper was implemented (`requests.get`/`httpx`/`urllib`/`BeautifulSoup` are not used to fetch web pages).
+
+**Files changed (in commit):**
+- `mcp/client.py`
+- `backend/app.py`
+- `DEVELOPMENT_LOG.md`
+
+**Validation / Checks Performed:**
+- Live Fetch MCP server was not available in the environment, so testing was performed offline against a local mock MCP server implementing the same HTTP tool-discovery/call protocol, plus static inspection.
+- Test 1 (valid URL `https://example.com`): SUCCESS, content returned through the (mock) MCP server.
+- Test 2 (invalid URL `not-a-url`): rejected cleanly with "Invalid URL.".
+- Test 3 (missing `MCP_SERVER_ENDPOINT`): clean "MCP configuration error" reported instead of a crash.
+- Test 4 (fetch failure): mock MCP server returned HTTP 500; application surfaced "Unable to retrieve webpage" cleanly.
+- Test 5 (no direct scraper): static inspection confirmed the only `requests` usage is MCP transport to `MCP_SERVER_ENDPOINT`; the user URL is never used as an HTTP request target.
+- Offline unit checks passed for dynamic tool selection, schema-driven argument building, missing-fetch-tool error, and content extraction shapes.
+
+**Commit:**
+- `feat: implement URL ingestion`
+
+**GitHub Issue:**
+- Issue #4 — "Implement URL ingestion" — see GitHub Issue status after push.
+
 ## 2026-08-12
 
 ### TASK-01 — Setup Python MCP client
