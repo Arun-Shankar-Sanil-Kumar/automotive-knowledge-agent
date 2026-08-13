@@ -7,27 +7,49 @@ retrieval.
 """
 from __future__ import annotations
 
+import logging
+import sys
+
 from mcp import MCPClient
-from mcp.client import extract_content
+from mcp.client import (
+    MCPConfigurationError,
+    MCPConnectionError,
+    MCPDiscoveryError,
+    MCPInvocationError,
+    MCPResponseError,
+    MCPToolNotFoundError,
+    extract_content,
+)
+
+logger = logging.getLogger(__name__)
 
 MAX_URL_LENGTH = 2048
+SUPPORTED_SCHEMES = ("http://", "https://")
 
 
-def validate_url(value: str) -> bool:
-    """Validate that the input looks like a reasonable HTTP/HTTPS URL."""
+class InvalidURLError(ValueError):
+    """The supplied URL is not acceptable for ingestion."""
+
+
+def validate_url(value: str) -> str:
+    """Validate the input URL and return it normalized, or raise InvalidURLError."""
     if not isinstance(value, str):
-        return False
+        raise InvalidURLError("Invalid URL.")
     value = value.strip()
     if not value:
-        return False
+        raise InvalidURLError("Invalid URL.")
     if len(value) > MAX_URL_LENGTH:
-        return False
+        raise InvalidURLError("Invalid URL.")
     if " " in value or "\t" in value or "\n" in value:
-        return False
+        raise InvalidURLError("Invalid URL.")
     lower = value.lower()
-    if not (lower.startswith("http://") or lower.startswith("https://")):
-        return False
-    return bool(value.split("://", 1)[1])
+    if not lower.startswith(SUPPORTED_SCHEMES):
+        raise InvalidURLError(
+            "Unsupported URL scheme. Only http:// and https:// are supported."
+        )
+    if not value.split("://", 1)[1]:
+        raise InvalidURLError("Invalid URL.")
+    return value
 
 
 def ingest_url(url: str) -> dict:
@@ -36,7 +58,11 @@ def ingest_url(url: str) -> dict:
     Connects to the MCP server, discovers its tools, identifies the Fetch
     tool from the discovered tool information, invokes it with the supplied
     URL, and extracts the returned content. Preserves the source URL.
+
+    Raises InvalidURLError for unusable URLs and MCP* exceptions on failure;
+    never marks a failed operation as SUCCESS.
     """
+    url = validate_url(url)
     client = MCPClient()
     client.connect()
     tools = client.list_tools()
@@ -45,12 +71,41 @@ def ingest_url(url: str) -> dict:
     result = client.call_tool(fetch_tool["name"], arguments)
     content = extract_content(result)
 
+    if not content.strip():
+        return {
+            "source": url,
+            "tool": fetch_tool["name"],
+            "status": "NO_CONTENT",
+            "content": "",
+        }
+
     return {
         "source": url,
         "tool": fetch_tool["name"],
         "status": "SUCCESS",
         "content": content,
     }
+
+
+def report_error(exc: Exception) -> None:
+    """Print a concise user-facing error and log the technical detail."""
+    if isinstance(exc, InvalidURLError):
+        print(exc)
+    elif isinstance(exc, MCPConfigurationError):
+        print(f"MCP configuration error: {exc}")
+    elif isinstance(exc, MCPConnectionError):
+        print(f"Unable to connect to Fetch MCP Server: {exc}")
+    elif isinstance(exc, MCPDiscoveryError):
+        print(f"Unable to discover Fetch MCP tools: {exc}")
+    elif isinstance(exc, MCPToolNotFoundError):
+        print(f"Unable to locate the Fetch tool: {exc}")
+    elif isinstance(exc, MCPInvocationError):
+        print(f"Unable to retrieve webpage: {exc}")
+    elif isinstance(exc, MCPResponseError):
+        print(f"Invalid response from Fetch MCP server: {exc}")
+    else:
+        logger.exception("Unexpected error during URL ingestion")
+        print(f"Unexpected error during URL ingestion: {exc}")
 
 
 def main() -> None:
@@ -65,22 +120,18 @@ def main() -> None:
         print("No URL entered. Exiting.")
         return
 
-    if not validate_url(raw):
+    try:
+        url = validate_url(raw)
+    except InvalidURLError:
         print("Invalid URL.")
         return
 
     print()
     print("Fetching URL through Fetch MCP...")
     try:
-        outcome = ingest_url(raw)
-    except ValueError as exc:
-        print("MCP configuration error:", exc)
-        return
-    except ConnectionError as exc:
-        print("Unable to connect to Fetch MCP Server:", exc)
-        return
-    except RuntimeError as exc:
-        print("Unable to retrieve webpage:", exc)
+        outcome = ingest_url(url)
+    except Exception as exc:
+        report_error(exc)
         return
 
     print()
@@ -92,10 +143,14 @@ def main() -> None:
     print()
     print("Content:")
     print("----------------------------------------")
-    content = outcome["content"].strip()
-    print(content if content else "Webpage retrieved, but no usable content was returned.")
+    print(outcome["content"] or "Webpage retrieved, but no usable content was returned.")
     print("----------------------------------------")
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.DEBUG,
+        stream=sys.stderr,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     main()

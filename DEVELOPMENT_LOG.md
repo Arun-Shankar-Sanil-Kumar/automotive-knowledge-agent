@@ -2,6 +2,43 @@
 
 ## 2026-08-13
 
+### TASK-05 — Add error handling
+
+**Status:** Completed
+
+**Work Performed:**
+- Introduced a dedicated exception hierarchy in `mcp/client.py` (`MCPError`, `MCPConfigurationError`, `MCPConnectionError`, `MCPDiscoveryError`, `MCPToolNotFoundError`, `MCPInvocationError`, `MCPResponseError`) and mapped every failure point in the Fetch MCP ingestion flow onto it: missing/invalid config, connection failure, `tools/list` failure, Fetch tool not found, `tools/call` failure, timeouts, and malformed/empty MCP responses.
+- Added `logging` to the MCP client and backend so technical details (timeouts, HTTP failures, malformed JSON) are logged for debugging while users see only concise messages.
+- Hardened `list_tools()` and `call_tool()` to raise `MCPResponseError`/`MCPInvocationError` instead of leaking raw exceptions; empty or malformed JSON responses are now detected cleanly.
+- Updated `backend/app.py` to raise `InvalidURLError` (with a specific unsupported-scheme message) during URL validation and to validate the URL inside `ingest_url()` before any MCP connection is attempted.
+- Added a `NO_CONTENT` status result for webpages that are retrieved but yield no usable content; a failed operation is never reported as SUCCESS.
+- Added `report_error()` to print clear, concise user-facing errors and log unexpected ones without uncontrolled tracebacks.
+- Added an offline test suite `tests/test_error_handling.py` that exercises the error paths against a local mock MCP server (stdlib `http.server`) plus direct unit checks. Mock testing is explicitly labeled as such; no real Fetch MCP server or real webpage fetching is involved.
+- Added `.claude/` to `.gitignore` (local tool configuration, not part of the project).
+- Webpage retrieval continues to run exclusively through the Fetch MCP server; no direct HTTP scraper was introduced.
+
+**Files changed (in commit):**
+- `mcp/client.py`
+- `backend/app.py`
+- `tests/test_error_handling.py`
+- `DEVELOPMENT_LOG.md`
+- `.gitignore`
+
+**Validation / Checks Performed:**
+- `python -m unittest discover -s tests -v` — 20 tests, all passing:
+  - URL validation (valid http/https, invalid, unsupported scheme, whitespace).
+  - Content extraction shapes (plain text, MCP-style text items, empty content).
+  - Client errors (missing config, connection failure, tool not found).
+  - Mock MCP server: successful ingest, `tools/list` failure, no Fetch tool, `tools/call` failure, malformed response, empty content (`NO_CONTENT`).
+  - Backend errors (invalid URL raises, missing config raises).
+- No live Fetch MCP server was available, so all testing used the local mock server only; a real Fetch MCP test was not run.
+
+**Commit:**
+- `fix: add MCP ingestion error handling`
+
+**GitHub Issue:**
+- Issue #5 — "Add error handling" — see GitHub Issue status after push.
+
 ### TASK-04 — Implement URL ingestion
 
 **Status:** Completed

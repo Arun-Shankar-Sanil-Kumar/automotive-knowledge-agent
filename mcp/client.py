@@ -8,16 +8,47 @@ scraping; the target URL is always passed to the MCP server.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any, Optional
 import requests
+
+logger = logging.getLogger(__name__)
+
+
+class MCPError(Exception):
+    """Base class for failures raised by the MCP client."""
+
+
+class MCPConfigurationError(MCPError, ValueError):
+    """The MCP server endpoint is missing or invalid."""
+
+
+class MCPConnectionError(MCPError, ConnectionError):
+    """Unable to establish a connection to the MCP server."""
+
+
+class MCPDiscoveryError(MCPError, RuntimeError):
+    """Failed to discover tools via tools/list."""
+
+
+class MCPToolNotFoundError(MCPError, RuntimeError):
+    """No suitable Fetch tool was found in the tool discovery result."""
+
+
+class MCPInvocationError(MCPError, RuntimeError):
+    """Failed to invoke an MCP tool via tools/call."""
+
+
+class MCPResponseError(MCPError, ValueError):
+    """The MCP server returned a malformed or empty response."""
 
 
 class MCPClient:
     """Minimal MCP client foundation.
 
     Reads basic configuration from environment variables and exposes
-    stubs for connect and tool discovery.
+    connect, tool discovery, and tool invocation.
     """
 
     def __init__(self, endpoint: Optional[str] = None, api_key: Optional[str] = None) -> None:
@@ -25,13 +56,11 @@ class MCPClient:
         self.api_key = api_key or os.getenv("MCP_API_KEY")
 
     def connect(self) -> None:
-        """Establish connection to MCP server.
-
-        Not implemented in TASK-01; this is a placeholder to be implemented
-        in the next task that actually integrates with a Fetch MCP server.
-        """
+        """Establish connection to the MCP server."""
         if not self.endpoint:
-            raise ValueError("MCP server endpoint is not configured. Set MCP_SERVER_ENDPOINT")
+            raise MCPConfigurationError(
+                "MCP server endpoint is not configured. Set MCP_SERVER_ENDPOINT"
+            )
 
         try:
             resp = requests.get(self.endpoint, timeout=5)
@@ -40,25 +69,37 @@ class MCPClient:
             # Store a lightweight server response for diagnostics; do not assume JSON
             self.server_info = resp.text
             return None
+        except requests.Timeout as exc:
+            self.connected = False
+            logger.debug("MCP connect timed out: %s", self.endpoint, exc_info=True)
+            raise MCPConnectionError(
+                f"Unable to connect to MCP server at {self.endpoint} (timeout)."
+            ) from exc
         except requests.RequestException as exc:
             self.connected = False
-            raise ConnectionError(f"Failed to connect to MCP server at {self.endpoint}: {exc}") from exc
+            logger.debug("MCP connect failed: %s", self.endpoint, exc_info=True)
+            raise MCPConnectionError(
+                f"Failed to connect to MCP server at {self.endpoint}: {exc}"
+            ) from exc
 
     def list_tools(self) -> list:
         """Discover available tools exposed by the MCP server.
 
-        Returns a list-like structure describing available tools. Not implemented
-        in TASK-01; present as a defined API for future work.
+        Returns a list-like structure describing available tools.
         """
         if not getattr(self, "connected", False):
             # Try a lightweight connect if not already connected
             try:
                 self.connect()
+            except MCPError:
+                raise
             except Exception as exc:
-                raise ConnectionError(f"Cannot discover tools because MCP connection failed: {exc}") from exc
+                raise MCPConnectionError(f"Cannot discover tools because MCP connection failed: {exc}") from exc
 
         if not self.endpoint:
-            raise ValueError("MCP server endpoint is not configured. Set MCP_SERVER_ENDPOINT")
+            raise MCPConfigurationError(
+                "MCP server endpoint is not configured. Set MCP_SERVER_ENDPOINT"
+            )
 
         url = self.endpoint.rstrip("/") + "/tools/list"
         headers = {}
@@ -68,41 +109,56 @@ class MCPClient:
         try:
             resp = requests.get(url, headers=headers, timeout=10)
             resp.raise_for_status()
+        except requests.Timeout as exc:
+            logger.debug("tools/list timed out: %s", url, exc_info=True)
+            raise MCPDiscoveryError(
+                f"Unable to retrieve source within the allowed time (tools/list at {url})."
+            ) from exc
+        except requests.RequestException as exc:
+            logger.debug("tools/list failed: %s", url, exc_info=True)
+            raise MCPDiscoveryError(f"Failed to list tools from MCP server at {url}: {exc}") from exc
 
-            # Prefer JSON if possible
-            content_type = resp.headers.get("Content-Type", "")
+        # Prefer JSON if possible
+        content_type = resp.headers.get("Content-Type", "")
+        try:
             if "application/json" in content_type.lower():
                 data = resp.json()
             else:
-                # Attempt JSON parse as fallback, otherwise treat as plain text
                 try:
                     data = resp.json()
-                except Exception:
+                except ValueError:
                     text = resp.text.strip()
-                    # If response looks like a newline-separated list, convert to dicts
-                    if text and "\n" in text:
+                    if not text:
+                        raise MCPResponseError(
+                            f"MCP server returned an empty tools/list response at {url}."
+                        ) from None
+                    if "\n" in text:
                         items = [line.strip() for line in text.splitlines() if line.strip()]
                         data = [{"name": it} for it in items]
                     else:
-                        # Last resort: wrap raw text
                         data = [{"raw": text}]
+        except MCPResponseError:
+            raise
+        except ValueError as exc:
+            logger.debug("tools/list returned malformed JSON: %s", url, exc_info=True)
+            raise MCPResponseError(
+                f"MCP server returned a malformed tools/list response at {url}: {exc}"
+            ) from exc
 
-            # Normalize to a list of tool descriptions
-            if isinstance(data, dict):
-                # Some servers return {"tools": [...]}
-                if "tools" in data and isinstance(data["tools"], list):
-                    tools = data["tools"]
-                else:
-                    # Wrap the dict in a list
-                    tools = [data]
-            elif isinstance(data, list):
-                tools = data
+        # Normalize to a list of tool descriptions
+        if isinstance(data, dict):
+            # Some servers return {"tools": [...]}
+            if "tools" in data and isinstance(data["tools"], list):
+                tools = data["tools"]
             else:
+                # Wrap the dict in a list
                 tools = [data]
+        elif isinstance(data, list):
+            tools = data
+        else:
+            tools = [data]
 
-            return tools
-        except requests.RequestException as exc:
-            raise ConnectionError(f"Failed to list tools from MCP server at {url}: {exc}") from exc
+        return tools
 
     def find_fetch_tool(self, tools: Optional[list] = None) -> dict:
         """Identify the Fetch tool from the discovered tool information.
@@ -125,7 +181,7 @@ class MCPClient:
         for tool in named:
             if "fetch" in tool["name"].lower():
                 return tool
-        raise RuntimeError(
+        raise MCPToolNotFoundError(
             "No Fetch tool found among the tools discovered on the MCP server"
         )
 
@@ -162,11 +218,15 @@ class MCPClient:
         if not getattr(self, "connected", False):
             try:
                 self.connect()
+            except MCPConnectionError:
+                raise
             except Exception as exc:
-                raise ConnectionError(f"Cannot invoke tool because MCP connection failed: {exc}") from exc
+                raise MCPConnectionError(f"Cannot invoke tool because MCP connection failed: {exc}") from exc
 
         if not self.endpoint:
-            raise ValueError("MCP server endpoint is not configured. Set MCP_SERVER_ENDPOINT")
+            raise MCPConfigurationError(
+                "MCP server endpoint is not configured. Set MCP_SERVER_ENDPOINT"
+            )
 
         url = self.endpoint.rstrip("/") + "/tools/call"
         headers = {"Content-Type": "application/json"}
@@ -177,23 +237,45 @@ class MCPClient:
         try:
             resp = requests.post(url, json=payload, headers=headers, timeout=30)
             resp.raise_for_status()
-            return self._parse_call_response(resp)
+        except requests.Timeout as exc:
+            logger.debug("tools/call timed out: %s", url, exc_info=True)
+            raise MCPInvocationError(
+                f"Unable to retrieve source within the allowed time (tools/call at {url})."
+            ) from exc
         except requests.RequestException as exc:
-            raise RuntimeError(f"Failed to invoke tool '{tool_name}': {exc}") from exc
+            logger.debug("tools/call failed: %s", url, exc_info=True)
+            raise MCPInvocationError(f"Failed to invoke tool '{tool_name}': {exc}") from exc
+        return self._parse_call_response(resp)
 
     @staticmethod
     def _parse_call_response(resp: requests.Response) -> Any:
-        """Parse a tool call response, returning the raw result structure."""
+        """Parse a tool call response, returning the raw result structure.
+
+        Raises MCPResponseError if the response is malformed or empty.
+        """
         content_type = resp.headers.get("Content-Type", "")
-        if "application/json" in content_type.lower():
-            try:
-                return resp.json()
-            except ValueError:
-                pass
         try:
-            return resp.json()
-        except ValueError:
-            return {"content": resp.text}
+            data = resp.json()
+            if isinstance(data, dict) and "error" in data:
+                logger.debug("tools/call returned server error: %s", data)
+                raise MCPInvocationError(
+                    f"Fetch MCP tool reported an error: {data['error']}"
+                )
+            return data
+        except MCPInvocationError:
+            raise
+        except ValueError as exc:
+            if "application/json" in content_type.lower():
+                logger.debug("tools/call returned malformed JSON: %s", resp.text[:200])
+                raise MCPResponseError(
+                    f"MCP server returned a malformed tools/call response: {exc}"
+                ) from exc
+            text = resp.text
+            if not text.strip():
+                raise MCPResponseError(
+                    "MCP server returned an empty tools/call response."
+                )
+            return {"content": text}
 
 
 def extract_content(result: Any) -> str:
@@ -215,10 +297,12 @@ def extract_content(result: Any) -> str:
                 parts.append(text)
         return "\n".join(parts)
     if isinstance(result, dict):
+        matched = False
         for key in ("content", "result", "text", "output", "body", "data", "response"):
             if key in result:
+                matched = True
                 text = extract_content(result[key])
                 if text:
                     return text
-        return json.dumps(result, indent=2)
+        return "" if matched else json.dumps(result, indent=2)
     return str(result)

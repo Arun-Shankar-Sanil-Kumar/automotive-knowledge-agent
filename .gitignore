@@ -1,6 +1,9 @@
 # Environment
 .env
 
+# Local tool configuration
+.claude/
+
 # Python
 __pycache__/
 *.pyc
